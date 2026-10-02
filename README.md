@@ -1,59 +1,28 @@
-# IssueHydrationSideEffect
+# Hydration cleanup mutates `@let` values that are arrays
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.0.
+Angular 22.2, `provideClientHydration()`, SSR.
 
-## Development server
-
-To start a local development server, run:
+## Reproduce
 
 ```bash
-ng serve
+yarn install
+yarn ng serve
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- `http://localhost:4200/frozen`: a frozen array of 7 frozen objects in a `@let`. The console shows
+  `TypeError: Cannot add property i18nNodes, object is not extensible` at `cleanupI18nHydrationData`.
+- `http://localhost:4200/mutable`: the same with plain objects. Click "Inspect items[6]" and you get
+  `["id","i18nNodes","dehydratedIcuData"]`. Angular wrote two properties onto application data.
 
-## Code scaffolding
+Conditions: the `@let` holds an array whose `[1]` is an object and `[6]` is an object, and the `@let` is read from a
+child view (here the `@for` body). Otherwise the compiler does not store it in the LView.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Cause
 
-```bash
-ng generate component component-name
-```
+`cleanupDehydratedViews` → `cleanupLView` iterates `lView[HEADER_OFFSET .. tView.bindingStartIndex)` and recurses into
+every slot passing `isLView(value)`, which is only `Array.isArray(value) && typeof value[TYPE] === 'object'`.
+`ɵɵdeclareLet`/`ɵɵstoreLet` put `@let` values into that same slot range, so an array of objects is mistaken for an
+LView, and `cleanupI18nHydrationData` writes `i18nNodes`/`dehydratedIcuData` onto `value[HYDRATION]` (= `value[6]`).
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Frozen data is common with NgRx `strictStateImmutability`, where it throws in dev mode. In production the store objects
+aren't frozen, so the store state is silently mutated.
