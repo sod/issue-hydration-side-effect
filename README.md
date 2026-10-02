@@ -2,9 +2,12 @@
 
 ```bash
 yarn install
-yarn ng serve
+yarn start
 ```
 
 - `http://localhost:4200/frozen`: the console shows
   `TypeError: Cannot add property i18nNodes, object is not extensible` at `cleanupI18nHydrationData`.
 - `http://localhost:4200/mutable`: click "Inspect items[6]" and you get `["id","i18nNodes","dehydratedIcuData"]`.
+
+`yarn start:fixed` patches the proposed fix into `node_modules/@angular/core` (`yarn start` reverts it): no error, and
+`["id"]`.

@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "node scripts/toggle-fix.mjs off && ng serve",
+    "start:fixed": "node scripts/toggle-fix.mjs on && ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "serve:ssr:issue-hydration-side-effect": "node dist/issue-hydration-side-effect/server/server.mjs"
