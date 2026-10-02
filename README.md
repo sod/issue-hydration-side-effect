@@ -1,6 +1,32 @@
-# Hydration cleanup mutates `@let` values that are arrays
+# Hydration cleanup mutates arrays stored in `@let` when the `@let` is read from a nested view
 
 Angular 22.2, `provideClientHydration()`, SSR.
+
+If a `@let` holding an array is read inside a nested block, hydration cleanup mistakes that array for an internal view
+and writes two properties onto its 7th element.
+
+## Conditions
+
+All of these must hold:
+
+1. The page is hydrated (SSR + `provideClientHydration()`).
+2. The `@let` is read from a nested view (`@for`, `@if`, `@switch`, `@defer` or `ng-template` body). Otherwise the
+   compiler inlines it and never stores it in the LView.
+3. The value is an array whose `[1]` is an object.
+4. Its `[6]` is an object.
+
+Minimal template:
+
+```html
+@let list = items;
+@for (item of list; track item.id) {
+  {{ list.length }}
+}
+```
+
+with `items` being an array of at least 7 objects.
+
+If `[6]` is frozen, cleanup throws. If it's mutable, it gets `i18nNodes` and `dehydratedIcuData` added silently.
 
 ## Reproduce
 
@@ -13,9 +39,6 @@ yarn ng serve
   `TypeError: Cannot add property i18nNodes, object is not extensible` at `cleanupI18nHydrationData`.
 - `http://localhost:4200/mutable`: the same with plain objects. Click "Inspect items[6]" and you get
   `["id","i18nNodes","dehydratedIcuData"]`. Angular wrote two properties onto application data.
-
-Conditions: the `@let` holds an array whose `[1]` is an object and `[6]` is an object, and the `@let` is read from a
-child view (here the `@for` body). Otherwise the compiler does not store it in the LView.
 
 ## Cause
 
